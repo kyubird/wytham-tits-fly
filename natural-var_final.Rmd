@@ -1,0 +1,1205 @@
+---
+title: "Natural variation of flight"
+author: "Kyu Min Huh"
+output:
+  html_document:
+    code_folding: show
+    fig_height: 5
+    fig_width: 7
+    toc: TRUE
+    toc_depth: 5
+    toc_float: 
+      collapsed: false
+      smooth_scroll: false
+editor_options:
+  chunk_output_type: console
+date: "2025-03-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Summary
+
+We analysed 1434 flights of 50 individuals of blue tit, great tit, and marsh tit to identify interspecific differences in take-off flight performance. We found significant difference in initial velocity and in-flight acceleration between species. Great tits showed higher initial velocity and lower in-flight acceleration than blue tits. Marsh tits did not differ in flight performance with other species. Weather conditions did not show significant effect to flight performance. 
+
+# I. Data 
+## libraries 
+```{r libraries, warning = FALSE, message = FALSE}
+library(dplyr)
+library(stringr)
+library(readr)
+library(fuzzyjoin)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(ggpubr)
+library(rstatix)
+library(coin)
+library(scales)
+library(gridExtra)
+library(ggthemes)
+library(ggbreak)
+library(lme4)
+library(reshape2)
+library(olsrr)
+library(gvlma)
+library(PerformanceAnalytics)
+library(usethis)
+library(devtools)
+library(redres)
+library(EnvStats)
+library(lmtest)
+library(lmerTest)
+library(AICcmodavg)
+library(emmeans)
+library(MuMIn)
+library(sjPlot)
+```
+
+## dataset 
+```{r}
+
+#in dept laptop
+#setwd("C:\\Users\\jesu4036\\OneDrive - Nexus365\\Documents\\R\\WythamWoods")
+#load all dates data 
+#all_dates3 <- read.delim(file = ".\\all_dates3.txt", sep = ",")
+
+#in the kyubird-laptop
+all_dates3 <- read.delim(file = "C:\\Users\\kmh\\Documents\\DATA\\2022-4\\paper\\all_dates3.txt", sep = ",") %>% distinct()
+
+all_dates3$datetime.y <- as.POSIXct(all_dates3$datetime.y, format = "%Y-%m-%d %H:%M:%S")
+colnames(all_dates3)
+all_dates3 <- all_dates3 %>% 
+  select(-Spec)
+ 
+
+#load climate data 
+#in dept laptop 
+#climate <- read.delim(file = ".\\climate_filled.csv", sep = ',')
+
+#in the kyubird laptop
+climate <- read.delim(file = "C:\\Users\\kmh\\Documents\\DATA\\2022-4\\paper\\climate_filled.csv", sep = ',')
+
+climate$datetime <- as.POSIXct(climate$datetime, format = "%Y-%m-%d %H:%M:%S")
+
+#in the dept laptop 
+#caught.hour.day <- read.delim(file = ".\\caught.hour.day.csv", sep = ",")
+
+#in the kyubird laptop
+caught.hour.day <- read.delim(file = "C:\\Users\\kmh\\Documents\\DATA\\2022-4\\paper\\caught.hour.day.csv", sep = ',')
+
+```
+
+## adding day and hour and climate 
+```{r}
+all_dates3$day <- day(all_dates3$datetime.y)
+all_dates3$hour <- hour(all_dates3$datetime.y)
+
+all_dates3$roundate <- round_date(all_dates3$datetime.y, "10 mins")
+all_dates3.climate <- merge(x = all_dates3, y = climate, by.x = "roundate", by.y = "datetime", all.x = TRUE)
+
+flight.data <- all_dates3.climate %>%
+  filter(day %in% c(15:24))
+
+nat.var <- all_dates3.climate %>%
+  filter(day %in% c(15:19))
+
+capt.eff <- all_dates3.climate %>%
+  filter(day %in% c(20:24))
+
+
+```
+
+write.csv(nat.var, "C:\\Users\\kmh\\Desktop\\DATA\\nat.var.csv")
+
+## data synopsis {.tabset}
+### raw continuous data 
+```{r}
+
+dim(flight.data) #total number of flight 
+table(flight.data$day)
+
+no.of.individuals <- rowSums(table(flight.data$species, flight.data$Ring)!=0) 
+no.of.flights <- table(flight.data$species)
+
+raw_sum <- rbind(no.of.individuals, no.of.flights)
+
+raw_sum
+
+
+```
+
+### natural variation data
+```{r}
+dim(nat.var) #total number of flight 
+table(nat.var$day)
+
+no.of.individuals <- rowSums(table(nat.var$species, nat.var$Ring)!=0) 
+no.of.flights <- table(nat.var$species)
+
+nat.var_sum <- rbind(no.of.individuals, no.of.flights)
+
+nat.var_sum
+
+breeding <- cbind(nat.var$Ring, nat.var$RFID, nat.var$species, nat.var$age, nat.var$Sex) %>% as.data.frame() %>%
+  distinct()
+colnames(breeding) <- c("Ring", "RFID", "species", "age", "Sex")
+
+```
+write.csv(breeding, "\\breeding.csv",row.names = FALSE )
+
+
+### For each species, M vs. F, young vs. adult, then between species
+```{r}
+#find the ring number of those without Sex in Great Tit & Blue Tit 
+for( i in 1:nrow(nat.var)){
+  
+  if(nat.var$Ring[i] == "ATR8387"){
+    
+    nat.var$Sex[i] <- "F"
+  }
+  
+  else if(nat.var$Ring[i] == "ATR8383"){
+    
+    nat.var$Sex[i] <- "F"
+  }
+  else if(nat.var$Ring[i] == "PF72506"){
+    
+    nat.var$Sex[i] <- "M"
+  }
+  else{}
+  
+}
+
+#Sex unknown for ATR8380 and ATR5368 both in morphometrics and brood data
+nosex <- nat.var %>%
+  filter(species != "marti") %>%
+  filter(Sex == "") %>%
+  select(Ring) %>%
+  distinct()  
+```
+
+### no.of individuals by species, age, sex in natural variation
+```{r}
+numbers <- nat.var %>%
+  count(species, age, Sex, Ring)
+
+
+individual.age <- numbers %>%
+  count(species, age)
+
+individual.sex <- numbers %>%
+  count(species, Sex)
+
+numbers.age <- numbers %>%
+   group_by(species, age) %>%
+   summarise(mean = mean(n), sd = sd(n)) %>%
+             na.omit()
+
+numbers.sex <- numbers %>%
+  group_by(species, Sex) %>%
+  summarise(mean = mean(n), sd = sd(n)) %>%
+            na.omit()
+
+numbers.age <- numbers.age %>%
+  add_column(individual.age$n)
+
+numbers.sex <- numbers.sex %>%
+  add_column(individual.sex$n)
+
+numbers.tot <- numbers %>%
+  group_by(species) %>%
+  summarise(mean = mean(n), sd = sd(n)) %>%
+            na.omit()
+
+numbers.age
+numbers.sex
+numbers.tot
+```
+
+#### t-tests on visiting rate
+```{r}
+
+bluti <- numbers %>%
+  filter(species == "bluti")
+
+greti <- numbers %>%
+  filter(species == "greti")
+
+marti <- numbers %>%
+  filter(species == "marti")
+
+
+
+bluti.F <- numbers %>%
+   filter(species == "bluti" & Sex == "F")
+
+bluti.M <- numbers %>%
+   filter(species == "bluti" & Sex == "M")
+
+bluti.5 <- numbers %>%
+   filter(species == "bluti" & age == 5)
+
+bluti.6 <- numbers %>%
+   filter(species == "bluti" & age == 6)
+
+greti.F <- numbers %>%
+  filter(species == "greti" & Sex == "F")
+
+greti.M <- numbers %>%
+  filter(species == "greti" & Sex == "M")
+
+greti.5 <- numbers %>%
+  filter(species == "greti" & age == 5)
+
+greti.6 <- numbers %>%
+  filter(species == "greti" & age == 6)
+
+t.test(bluti.F$n, bluti.M$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(bluti.5$n, bluti.6$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(greti.F$n, greti.M$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(greti.5$n, greti.6$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+
+t.test(bluti$n, greti$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(bluti$n, marti$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(greti$n, marti$n, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+```
+
+#### headwind, air temperature, humidity
+```{r}
+
+#overall climate data 
+#find how many weather values are missing
+#missing data that do not make to the final dataset. 
+View(flight.data[!complete.cases(flight.data),])
+#mean weather 
+
+mean(flight.data$air.temp, na.rm = TRUE)
+mean(flight.data$headwind, na.rm = TRUE) #relative to the birds flying out of the tunnel
+mean(flight.data$humidity, na.rm = TRUE)
+
+
+#dataset for baseline variation 
+climate.nat.var <- nat.var %>%
+  filter(day %in% c(15:19)) %>%
+  select(headwind, air.temp, humidity)
+  
+#not using caught.hour.day which is a reduced dataset to just answer the question if the climate conditions were different at nat.var vs. capt.eff
+#otherwise everything is significant probably the sample size is so vastly different
+climate.capt.eff <- caught.hour.day %>%
+  select(headwind, air.temp, humidity)
+
+#mean of nat.var. # 2 for columns
+apply(climate.nat.var, 2,mean)
+#sd of nat.var
+apply(climate.nat.var, 2, sd)
+#mean of capt.eff
+apply(climate.capt.eff, 2, mean, na.rm = TRUE)
+#mean of capt.eff
+apply(climate.capt.eff, 2, sd, na.rm = TRUE)
+
+climate.all <- nat.var %>%
+  filter(day %in% c(15:24)) %>%
+  select(headwind, air.temp, humidity)
+
+apply(climate.all, 2, mean)
+apply(climate.all, 2, sd)
+
+caught.byday <- caught.hour.day %>%
+  group_by(cgt_day) %>%
+  summarise(mean.hdw = mean(headwind, na.rm = FALSE),
+            mean.art = mean(air.temp, na.rm = FALSE),
+            mean.hmd = mean(humidity, na.rm = FALSE),
+            sd.hdw = sd(headwind, na.rm = FALSE),
+            sd.art = sd(air.temp, na.rm = FALSE),
+            sd.hmd = sd(humidity, na.rm = FALSE),
+            max.hdw = max(headwind, na.rm = FALSE),
+            min.hdw = min(headwind, na.rm = FALSE)
+            ) %>%
+            na.omit()
+
+
+caught.byday
+
+day0 <- caught.hour.day %>%
+          filter(cgt_day == 0)
+
+day1 <- caught.hour.day %>%
+          filter(cgt_day == 1)
+
+t.test(day0$headwind, day1$headwind, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(day0$air.temp, day1$air.temp, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(day0$humidity, day1$humidity, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+
+```
+
+```{r}
+t.test(climate.nat.var$headwind, climate.capt.eff$headwind, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(climate.nat.var$air.temp, climate.capt.eff$air.temp, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+t.test(climate.nat.var$humidity, climate.capt.eff$humidity, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+```
+
+### duration difference 
+```{r}
+raw.flight.metrics <- nat.var %>%
+  group_by(species) %>%
+  summarise(mean.v1 = mean(v1, na.rm = FALSE),
+            mean.v2 = mean(v2, na.rm = FALSE),
+            mean.acc = mean(acc, na.rm = FALSE),
+            mean.avg.v = mean(avg.v, na.rm = FALSE),
+            mean.t1 = mean(t1, na.rm = FALSE),
+            mean.t2 = mean(t2, na.rm = FALSE),
+            mean.t3 = mean((t1+t2), na.rm = FALSE),
+            sd.v1 = sd(v1, na.rm = FALSE),
+            sd.v2 = sd(v2, na.rm = FALSE),
+            sd.acc = sd(acc, na.rm = FALSE),
+            sd.avg.v = sd(avg.v, na.rm = FALSE),
+            sd.t1 = sd(t1, na.rm = FALSE),
+            sd.t2 = sd(t2, na.rm = FALSE),
+            sd.t3 = sd((t1+t2), na.rm = FALSE)
+            ) %>%
+            na.omit()
+
+raw.flight.metrics
+
+
+
+
+bluti.raw <- nat.var %>%
+  filter(species == "bluti") %>%
+  mutate(t3 = t1 + t2)
+
+greti.raw <- nat.var %>%
+  filter(species == "greti") %>%
+  mutate(t3 = t1 + t2)
+
+
+
+
+
+t.test(bluti.raw$t1, greti.raw$t1, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+
+t.test(bluti.raw$t2, greti.raw$t2, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+
+t.test(bluti.raw$t3, greti.raw$t3, paired = FALSE, var.equal = FALSE, conf.level = 0.95)
+```
+write.csv(raw.flight.metrics, "raw.flight.metrics.csv",row.names = FALSE )
+
+
+# II. Graphs {.tabset} 
+## A. Structural variation {.tabset}
+### 1. individual variation
+```{r, echo = FALSE, warning = FALSE}
+indv_diff_v1 <- ggplot(data= nat.var, aes(x=Ring, y=v1, fill = species)) +
+  geom_boxplot(alpha = 1)+ 
+  #stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  #stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  #stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "top") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+   scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("initial velocity (m/s)") 
+
+indv_diff_v2 <- ggplot(data= nat.var, aes(x=Ring, y=v2, fill = species)) +
+  geom_boxplot(alpha = 1)+ 
+  #stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  #stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  #stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+   scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("end velocity (m/s)") 
+
+
+indv_diff_avg.v <- ggplot(data= nat.var, aes(x=Ring, y=avg.v, fill = species)) +
+  geom_boxplot(alpha =1)+ 
+  #stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+ # stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  #stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+   scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("average velocity (m/s)") 
+  
+
+indv_diff_acc <- ggplot(data= nat.var, aes(x=Ring, y=acc, fill = species)) +
+  geom_boxplot(alpha = 1)+ 
+  #stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  #stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  #stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+ 
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("acceleration (m/s^2)") 
+
+grid.arrange(indv_diff_v1, indv_diff_v2, indv_diff_avg.v, indv_diff_acc, nrow = 2)
+```
+
+### 2. species variation
+```{r, echo = FALSE, warning = FALSE}
+
+spec_diff_v1 <- ggplot(data = nat.var, aes(x=species, y=v1, fill = species)) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("initial velocity (m/s)")
+
+spec_diff_v2 <- ggplot(data = nat.var, aes(x=species, y=v2, fill = species)) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("end velocity (m/s)") 
+
+spec_diff_avg.v <- ggplot(data = nat.var, aes(x=species, y=avg.v, fill = species)) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("average velocity (m/s)")
+  
+spec_diff_acc <- ggplot(data = nat.var, aes(x=species, y=acc, fill = species)) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  ylab("acceleration (m/s^2)")
+
+grid.arrange(spec_diff_v1, spec_diff_v2, spec_diff_avg.v, spec_diff_acc, nrow =2)
+```
+
+### 3. sex x species variation
+```{r, include = FALSE}
+#find the species without sex determined within blue tit and great tit
+all_dates3.sex.na <- all_dates3 %>%
+  filter(species %in% c("bluti", "greti")) %>%
+  dcast(Ring ~ Sex) %>%
+  filter(Var.2 != 0)
+
+all_dates3.sex.na #was initially 4. see if now its changed to 4 ->3. fixed!
+
+table(all_dates3$Sex) #to see how males and femals are nominated
+
+#4 blue tits found and ATR8387 logged as F
+
+for(i in 1:nrow(all_dates3)){
+  
+  if(all_dates3$Ring[i] == "ATR8387"){
+    
+    all_dates3$Sex[i] <- "F"
+  }
+  else{}
+  
+}
+
+all_dates3.sex.na
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+#filter marsh tit and 
+all_dates3_sex <- all_dates3 %>%
+  filter(species %in% c("bluti", "greti"))%>%
+  filter(!Ring %in% all_dates3.sex.na$Ring)
+
+#by sex and then facet_wrap by species
+sex_diff_v1 <- ggplot(data=all_dates3_sex, aes(x=Sex, y=v1, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38"), 
+                    name = "species") +
+  ylab("initial velocity (m/s)") + facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit")))
+
+sex_diff_v2 <- ggplot(data=all_dates3_sex, aes(x=Sex, y=v2, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38"), 
+                    name = "species") +
+  ylab("end velocity (m/s)") + facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit")))
+
+sex_diff_avg.v <- ggplot(data=all_dates3_sex, aes(x=Sex, y=avg.v, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38"), 
+                    name = "species") +
+  ylab("average velocity (m/s)") + facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit")))
+
+sex_diff_acc <- ggplot(data=all_dates3_sex, aes(x=Sex, y=acc, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38"), 
+                    name = "species") +
+  ylab("acceleration (m/s^2)") + facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit")))
+
+
+grid.arrange(sex_diff_v1, sex_diff_v2, sex_diff_avg.v, sex_diff_acc, nrow = 2)
+```
+
+### 4. age variation
+```{r, echo = FALSE, warning = FALSE}
+
+#by age and then facet_wrap by species
+age_diff_v1 <- ggplot(data = nat.var, aes(x = factor(age), y=v1, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  scale_x_discrete(labels = c('first-year', 'adult')) +
+  ylab("initial velocity (m/s)") + 
+  facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit", "marti" = "marsh tit"))) 
+
+age_diff_v2 <- ggplot(data = nat.var, aes(x = factor(age), y = v2, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  scale_x_discrete(labels = c('first-year', 'adult')) +
+  ylab("end velocity (m/s)") + 
+  facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit", "marti" = "marsh tit"))) 
+
+age_diff_avg.v <- ggplot(data = nat.var, aes(x = factor(age), y = avg.v, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  scale_x_discrete(labels = c('first-year', 'adult')) +
+  ylab("average velocity (m/s)") + 
+  facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit", "marti" = "marsh tit"))) 
+
+age_diff_acc <- ggplot(data = nat.var, aes(x = factor(age), y = acc, fill = factor(species))) +
+  geom_boxplot(alpha =0.7)+ 
+  stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
+  stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
+  stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) +
+  scale_x_discrete(labels = c('first-year', 'adult')) +
+  ylab("acceleration (m/s)") + 
+  facet_wrap(~species, labeller = labeller(species = c("greti" = "great tit", "bluti" = "blue tit", "marti" = "marsh tit"))) 
+
+grid.arrange(age_diff_v1, age_diff_v2, age_diff_avg.v, age_diff_acc, nrow = 2)
+#add age 
+```
+
+
+## B. climate factors {.tabset}
+### 5.1 headwind
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+headwind_v1 <- ggplot(data=nat.var, aes(x = headwind, y= v1, color = species)) +
+  geom_point(size = 1, alpha = 0.5) + geom_smooth(method ="lm") +
+  ylab("initial velocity (m/s)") + xlab("headwind (m/s)") +
+  theme(legend.position = "none") +
+ # theme(axis.title.x=element_blank())+
+  theme(legend.title = element_blank()) +
+  scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"),
+                     breaks = c("greti", "marti", "bluti"),
+                     labels = c("Great Tit", "Marsh Tit", "Blue Tit")) 
+
+
+headwind_v2 <- ggplot(data=nat.var, aes(x=headwind, y=v2, color = species)) +
+  geom_point(size = 1, alpha =0.5) + geom_smooth(method ="lm") +
+  ylab("end velocity (m/s)") + xlab("headwind (m/s)") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) 
+
+headwind_avg.v <- ggplot(data=nat.var, aes(x=headwind, y=avg.v, color = species)) +
+  geom_point(size = 1, alpha = 0.5) + geom_smooth(method ="lm") +
+  ylab("average velocity (m/s)") + xlab("headwind (m/s)") +
+  theme(legend.position = "none") +
+  theme(axis.title.x=element_blank())+
+  scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) 
+
+headwind_acc <- ggplot(data=nat.var, aes(x=headwind, y=acc, color = species)) +
+  geom_point(size = 1, alpha = 0.5) + geom_smooth(method ="lm") +
+  ylab("acceleration (m/s^2)") + xlab("headwind (m/s)") +
+  theme(legend.position = "none") +
+  #theme(axis.title.x=element_blank())+
+  scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) 
+
+grid.arrange(headwind_v1, headwind_acc, nrow = 1)
+
+```
+
+### 5.2 air temperature
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+air.temp_v1 <- ggplot(data=all_dates3.climate, aes(x = air.temp, y=v1, color = species)) +
+  geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
+  ylab("iniital velocity (m/s)") + xlab("air temperature (C)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+air.temp_v2 <- ggplot(data=all_dates3.climate, aes(x = air.temp, y=v2, color = species)) +
+  geom_point(size = 1, alpha =0.1) + geom_smooth(method ="lm") +
+  ylab("end velocity (m/s)") + xlab("air temperature (C)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+air.temp_avg.v <- ggplot(data=all_dates3.climate, aes(x = air.temp, y=avg.v, color = species)) +
+  geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
+  ylab("average velocity (m/s)") + xlab("air temperature (C)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+air.temp_acc <- ggplot(data=all_dates3.climate, aes(x = air.temp, y=acc, color = species)) +
+  geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
+  ylab("acceleration (m/s^2)") + xlab("air temperature (C)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+grid.arrange(air.temp_v1, air.temp_v2, air.temp_avg.v, air.temp_acc, nrow = 2)
+```
+
+### 5.3 humidity
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+humidity_v1 <- ggplot(data=all_dates3.climate, aes(x = humidity, y=v1, color = species)) +
+  geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
+  ylab("iniital velocity (m/s)") + xlab("humidity (%)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+humidity_v2 <- ggplot(data=all_dates3.climate, aes(x = humidity, y=v2, color = species)) +
+  geom_point(size = 1, alpha =0.1) + geom_smooth(method ="lm") +
+  ylab("end velocity (m/s)") + xlab("humidity (%)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+humidity_avg.v <- ggplot(data=all_dates3.climate, aes(x = humidity, y=avg.v, color = species)) +
+  geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
+  ylab("average velocity (m/s)") + xlab("humidity (%)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+humidity_acc <- ggplot(data=all_dates3.climate, aes(x = humidity, y=acc, color = species)) +
+  geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
+  ylab("acceleration (m/s^2)") + xlab("humidity (%)") +
+  theme(legend.position = "none") +
+   scale_color_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00"))
+
+grid.arrange(humidity_v1, humidity_v2, humidity_avg.v, humidity_acc, nrow = 2)
+```
+
+## C. diurnal variation 
+day effect not included in linear or linear mixed models because there was no difference among days until mist-netting happened.
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+#fight x hour of day 
+plot_v1.all_dates3.spec <- all_dates3 %>% group_by(species, hour) %>%
+  summarise(mean = mean(v1, na.rm=FALSE), 
+            sd = sd(v1, na.rm=FALSE),
+            upper = mean + sd, 
+            lower = mean - sd)
+
+
+plot_v2.all_dates3.spec <- all_dates3 %>% group_by(species, hour) %>%
+  summarise(mean = mean(v2, na.rm=FALSE), 
+            sd = sd(v2, na.rm=FALSE),
+            upper = mean + sd, 
+            lower = mean - sd)
+
+plot_avg.v.all_dates3.spec <- all_dates3 %>% group_by(species, hour) %>%
+  summarise(mean = mean(avg.v, na.rm=FALSE), 
+            sd = sd(avg.v, na.rm=FALSE),
+            upper = mean + sd, 
+            lower = mean - sd)
+
+plot_acc.all_dates3.spec <- all_dates3 %>% group_by(species, hour) %>%
+  summarise(mean = mean(acc, na.rm=FALSE), 
+            sd = sd(acc, na.rm=FALSE),
+            upper = mean + sd, 
+            lower = mean - sd)
+
+all_dates3_summary <- all_dates3 %>% group_by(species) %>% summarise()
+
+#v1
+byspecies_alldates_v1 <-
+ggplot() + 
+  geom_jitter(data = all_dates3, aes(x=hour, y=v1, colour=species), 
+              alpha=0.7)  +
+  geom_ribbon(data=plot_v1.all_dates3.spec, 
+              aes(x=hour, ymax=upper, ymin=lower, fill=species), 
+              alpha = 0.5) + 
+  geom_line(data=plot_v1.all_dates3.spec, 
+            aes(x=hour, y=mean, colour=species, group=species), 
+           size=1.5) +
+   scale_color_manual(values = c("bluti" ="#56B4E9", "greti" = "#009E73", "marti" ="#D55E00"))  +
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) + #shade 
+  scale_x_continuous(breaks=c(7:18)) +
+  ylab("initial velocity (m/s)") +
+  theme(legend.position = "none")
+
+
+#v2
+byspecies_alldates_v2 <-
+ggplot() + 
+  geom_jitter(data = all_dates3, aes(x=hour, y=v2, colour=species), 
+              alpha=0.7)  +
+  geom_ribbon(data=plot_v2.all_dates3.spec, 
+              aes(x=hour, ymax=upper, ymin=lower, fill=species), 
+              alpha = 0.5) + 
+  geom_line(data=plot_v2.all_dates3.spec, 
+            aes(x=hour, y=mean, colour=species, group=species), 
+           size=1.5) +
+   scale_color_manual(values = c("bluti" ="#56B4E9", "greti" = "#009E73", "marti" ="#D55E00"))  +
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) + #shade 
+  scale_x_continuous(breaks=c(7:18)) +
+  ylab("end velocity (m/s)") +
+  theme(legend.position = "none")
+
+
+
+#Average velocity 
+byspecies_alldates_avg.v <-
+ggplot() + 
+  geom_jitter(data = all_dates3, aes(x=hour, y=avg.v, colour=species), 
+              alpha=0.7)  +
+  geom_ribbon(data=plot_avg.v.all_dates3.spec, 
+              aes(x=hour, ymax=upper, ymin=lower, fill=species), 
+              alpha = 0.5) + 
+  geom_line(data=plot_avg.v.all_dates3.spec, 
+            aes(x=hour, y=mean, colour=species, group=species), 
+           size=1.5) +
+   scale_color_manual(values = c("bluti" ="#56B4E9", "greti" = "#009E73", "marti" ="#D55E00"))  +
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) + #shade 
+  scale_x_continuous(breaks=c(7:18)) +
+  ylab("average velocity (m/s)") +
+  theme(legend.position = "none")
+
+#Average acceleration
+byspecies_alldates_acc <-
+ggplot() + 
+  geom_jitter(data = all_dates3, aes(x=hour, y=acc, colour=species), alpha=0.7) +
+  geom_ribbon(data=plot_acc.all_dates3.spec, 
+              aes(x=hour, ymax=upper, ymin=lower, fill=species), 
+              alpha = 0.5) + 
+  geom_line(data=plot_acc.all_dates3.spec, 
+            aes(x=hour, y=mean, colour=species, group=species), 
+            size=1.5)+
+ scale_color_manual(values = c("bluti" ="#56B4E9", "greti" = "#009E73", "marti" ="#D55E00"))  +
+  scale_fill_manual(values = c("bluti" ="#619CFF", "greti" = "#00BA38", "marti" = "#D55E00")) + #shade 
+ scale_x_continuous(breaks=c(7:18)) +
+ ylab("acceleration (m/s^2)") +
+  theme(legend.position = "none")
+
+grid.arrange(byspecies_alldates_v1, byspecies_alldates_v2, byspecies_alldates_avg.v, byspecies_alldates_acc, nrow =2)
+
+
+```
+
+# III. Linear Mixed Model analysis 
+We chose linear mixed model to account for individual variation in flight speed. We chose headwind from climate factors by its relationship with flight and correlation with air temperature and humidity. 
+
+## A. Model selection 
+### 1. checking correlations
+```{r, echo = FALSE, warning = FALSE}
+colnames(all_dates3.climate)
+cor.chart = chart.Correlation(all_dates3.climate[,34:38], histogram=TRUE, pch=19)
+
+```
+
+### 2. Proposed Mixed Linear Models.
+#### with headwind
+```{r}
+lmer.v1 = lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var)
+lmer.v2 = lmer(v2 ~species  + Sex  + age + headwind + (1|Ring), data = nat.var)
+lmer.avg.v = lmer(avg.v ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var)
+lmer.acc = lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var)
+
+```
+
+#### with air temperature
+```{r}
+lmer.v1 = lmer(v1 ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var)
+lmer.v2 = lmer(v2 ~species  + Sex  + age + air.temp + (1|Ring), data = nat.var)
+lmer.avg.v = lmer(avg.v ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var)
+lmer.acc = lmer(acc ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var)
+
+```
+
+
+
+### 3. preparing dataset without outliers {.tabset}
+We then identified 15 outliers using Rosner's Test(1983) and prepared a dataset excluding outliers to see the sensitivity of the models to the outliers. All the outliers were included in the dataset in the end as we could not confirm that these outliers were from measurement errors. 
+```{r, warning = FALSE, message = FALSE, results = FALSE}
+test.v1 <- rosnerTest(nat.var$v1, k=3)
+test.v1$all.stats
+
+test.v2 <- rosnerTest(nat.var$v2, k=10)
+test.v2$all.stats
+
+test.avg.v<- rosnerTest(nat.var$avg.v, k=13)
+test.avg.v$all.stats
+
+test.acc <- rosnerTest(nat.var$acc, k=3)
+test.acc$all.stats
+
+#collecting outlier row numbers
+out.v1 <- test.v1$all.stats %>% 
+  filter(Outlier == "TRUE") %>%
+  select(Obs.Num)
+
+out.v2 <- test.v2$all.stats %>% 
+  filter(Outlier == "TRUE") %>%
+  select(Obs.Num)
+
+out.avg.v <- test.avg.v$all.stats %>% 
+  filter(Outlier == "TRUE") %>%
+  select(Obs.Num)
+
+out.acc <- test.acc$all.stats %>% 
+  filter(Outlier == "TRUE") %>%
+  select(Obs.Num)
+```
+
+#### outliers
+```{r}
+outliers <- rbind(out.v1, out.v2, out.avg.v, out.acc) %>% distinct()
+outliers #15 outliers 
+```
+
+#### without outliers
+```{r}
+nat.var.out <- nat.var[-c(outliers$Obs.Num),]
+dim(nat.var.out) #1419 observations
+```
+
+## B. Linear mixed model assumptions 
+### normality tests {.tabset} 
+```{r}
+# Computes the default residuals (raw conditional)
+raw_cond.v1 <- compute_redres(lmer.v1)
+raw_cond.v2 <- compute_redres(lmer.v2)
+raw_cond.avg.v <- compute_redres(lmer.avg.v)
+raw_cond.acc <- compute_redres(lmer.acc)
+```
+#### initial velocity
+```{r}
+shapiro.test(raw_cond.v1) #p <0.05
+```
+#### end velocity
+```{r}
+shapiro.test(raw_cond.v2) #p <0.05
+```
+#### average velocity
+```{r}
+shapiro.test(raw_cond.avg.v) #p <0.05
+```
+#### end velocity
+```{r}
+shapiro.test(raw_cond.acc) #p <0.05
+```
+
+
+### checking assumption graphs {.tabset}
+#### initial velocity  
+```{r}
+plot(nat.var$headwind, nat.var$v1) #linearity
+plot(nat.var$air.temp, nat.var$v1) #linearity
+
+hist(raw_cond.v1) #normality in histogram
+plot_redres(lmer.v1) #heteroskedasticity
+plot_resqq(lmer.v1) #normality of residuals
+plot_ranef(lmer.v1) #normality of random effects residuals
+```
+  
+#### end velocity
+```{r}
+plot(nat.var$headwind, nat.var$v2)
+plot(nat.var$air.temp, nat.var$v2) #wider range
+hist(raw_cond.v2) #normality in histogram
+plot_redres(lmer.v2) #heteroskedasticity
+plot_resqq(lmer.v2) #normality of residuals. not great..
+plot_ranef(lmer.v2) #normality of random effects residuals
+```
+
+#### average velocity
+```{r}
+plot(nat.var$headwind, nat.var$avg.v)
+plot(nat.var$air.temp, nat.var$avg.v)
+hist(raw_cond.avg.v) #normality in histogram
+plot_redres(lmer.avg.v) #heteroskedasticity
+plot_resqq(lmer.avg.v) #normality of residuals. #not great..
+plot_ranef(lmer.avg.v) #normality of random effects residuals
+```
+
+#### acceleration
+```{r}
+plot(nat.var$headwind, nat.var$acc)
+plot(nat.var$air.temp, nat.var$acc) #better linearity
+hist(raw_cond.acc) #normality in histogram
+plot_redres(lmer.acc) #heteroskedasticity
+plot_resqq(lmer.acc) #normality of residuals. great. 
+plot_ranef(lmer.acc) #normality of random effects residuals
+```
+
+
+## C. Model summary {.tabset}
+### initial velocity
+```{r}
+library(lmerTest)
+Anova(lmer.v1, type = 3, test.statistic = "F") #Kenward-Rodger df
+summary(lmer.v1)
+lsmeans(lmer.v1, pairwise~species)
+```
+### end velocity
+```{r}
+Anova(lmer.v2, type = 3, test.statistic = "F") #nothing significant
+summary(lmer.v2)
+```
+### average velocity 
+```{r}
+Anova(lmer.avg.v, type = 3, test.statistic = "F")
+summary(lmer.avg.v)
+```
+### acceleration
+```{r}
+Anova(lmer.acc, type = 3, test.statistic = "F")
+summary(lmer.acc)
+lsmeans(lmer.acc, pairwise~ species) 
+```
+
+## D. Best model selection {.tabset}
+### automatic model averaging - with headwind 
+```{r}
+summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+summary(model.avg(dredge(lmer(v2 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+summary(model.avg(dredge(lmer(avg.v ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+```
+
+### automatic model averaging - with air.temp 
+```{r}
+summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + air.temp + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+summary(model.avg(dredge(lmer(v2 ~ species  + Sex + age + air.temp + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10)) #null AICc higher by 11 delta AIC
+
+summary(model.avg(dredge(lmer(avg.v ~ species  + Sex + age + air.temp + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10)) #null AICc higher by 7.62 delta AIC 
+
+summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + air.temp + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+```
+
+### final models
+```{r}
+lmer.v1.fin <- lmer(v1 ~ species + (1|Ring), data = nat.var)
+lmer.v2.fin <- lmer(v2 ~ headwind + (1|Ring), data = nat.var)
+lmer.avg.v.fin <- lmer(avg.v ~ headwind + (1|Ring), data = nat.var)
+lmer.acc.fin <- lmer(acc ~ species  + Sex + (1|Ring), data = nat.var)
+
+#without outliers
+lmer.v1.fin.out <- lmer(v1 ~ species + (1|Ring), data = nat.var.out)
+lmer.v2.fin.out <- lmer(v2 ~ headwind + (1|Ring), data = nat.var.out)
+lmer.avg.v.fin.out <- lmer(avg.v ~ headwind + (1|Ring), data = nat.var.out)
+lmer.acc.fin.out <- lmer(acc ~ species  + Sex + (1|Ring), data = nat.var.out)
+
+```
+## E. checking best model assumptions {.tabset}  
+Acceleration is skipped as the best model was the full model, acceleration only had one outlier, and the full model assumptions were well validated.   
+  
+### normality tests {.tabset}   
+```{r}
+# Computes the default residuals (raw conditional)
+raw_cond.v1.fin <- compute_redres(lmer.v1.fin)
+raw_cond.v1.fin.out <- compute_redres(lmer.v1.fin.out)
+
+raw_cond.v2.fin <- compute_redres(lmer.v2.fin)
+raw_cond.v2.fin.out <- compute_redres(lmer.v2.fin.out)
+
+raw_cond.avg.v.fin <- compute_redres(lmer.avg.v.fin)
+raw_cond.avg.v.fin.out <- compute_redres(lmer.avg.v.fin.out)
+
+#however checking the one without the outliers
+raw_cond.acc.fin <- compute_redres(lmer.acc.fin)
+raw_cond.acc.fin.out <- compute_redres(lmer.acc.fin.out)
+
+```
+#### initial velocity
+```{r}
+shapiro.test(raw_cond.v1.fin)
+shapiro.test(raw_cond.v1.fin.out)
+```
+
+#### end velocity
+```{r}
+shapiro.test(raw_cond.v2.fin)
+shapiro.test(raw_cond.v2.fin.out)
+```
+#### average velocity
+```{r}
+shapiro.test(raw_cond.avg.v.fin)
+shapiro.test(raw_cond.avg.v.fin.out)
+```
+#### end velocity
+```{r}
+shapiro.test(raw_cond.acc.fin)
+shapiro.test(raw_cond.acc.fin.out)
+```
+
+#### acceleration
+```{r}
+shapiro.test(raw_cond.acc.fin)
+shapiro.test(raw_cond.acc.fin.out)
+```
+
+### checking assumptions - no outliers vs. outliers {.tabset}      
+#### initial velocity      
+```{r}
+hist(raw_cond.v1.fin) #normality in histogram
+hist(raw_cond.v1.fin.out)
+plot_redres(lmer.v1.fin) #heteroskedasticity
+plot_redres(lmer.v1.fin.out)
+plot_resqq(lmer.v1.fin) #normality of residuals
+plot_resqq(lmer.v1.fin.out)
+plot_ranef(lmer.v1.fin) #normality of random effects residuals
+plot_ranef(lmer.v1.fin.out) 
+```
+
+
+#### end velocity  
+```{r}
+hist(raw_cond.v2.fin) #normality in histogram
+hist(raw_cond.v2.fin.out)
+plot_redres(lmer.v2.fin) #heteroskedasticity
+plot_redres(lmer.v2.fin.out)
+plot_resqq(lmer.v2.fin) #normality of residuals
+plot_resqq(lmer.v2.fin.out) 
+plot_ranef(lmer.v2.fin) #normality of random effects residuals
+plot_ranef(lmer.v2.fin.out) 
+```
+
+
+#### average velocity   
+```{r}
+hist(raw_cond.avg.v.fin) #normality in histogram
+hist(raw_cond.avg.v.fin.out)
+plot_redres(lmer.avg.v.fin) #heteroskedasticity
+plot_redres(lmer.avg.v.fin.out)
+plot_resqq(lmer.avg.v.fin) #normality of residuals
+plot_resqq(lmer.avg.v.fin.out)
+plot_ranef(lmer.avg.v.fin) #normality of random effects residuals
+plot_ranef(lmer.avg.v.fin.out)
+```
+
+
+## F. Best model summary {.tabset}  
+### initial velocity 
+```{r}
+#contrasts = list(Ring = contr.sum, cgt_day = contr.sum))
+Anova(lmer.v1.fin, type = 3, test.statistic = "F") #species 
+Anova(lmer.v1.fin.out, type = 3, test.statistic = "F")
+summary(lmer.v1.fin)
+tab_model(lmer.v1.fin)
+
+lsmeans(lmer.v1.fin, pairwise~species)
+lsmeans.v1 <- lsmeans(lmer.v1.fin, pairwise~species)
+```
+### end velocity 
+```{r}
+Anova(lmer.v2.fin, type = 3, test.statistic = "F") #species and headwind
+Anova(lmer.v2.fin.out, type = 3, test.statistic = "F")
+summary(lmer.v2.fin)
+
+```
+### average velocity
+```{r}
+Anova(lmer.avg.v.fin, type = 3, test.statistic = "F") #species and headwind
+Anova(lmer.avg.v.fin.out, type = 3, test.statistic = "F")
+summary(lmer.avg.v.fin)
+
+```
+### acceleration
+```{r}
+Anova(lmer.acc.fin, type = 3, test.statistic = "F") #species and Sex
+Anova(lmer.acc.fin.out, type = 3, test.statistic = "F")
+summary(lmer.acc.fin)
+tab_model(lmer.acc.fin)
+
+lsmeans(lmer.acc.fin, pairwise~species)
+lsmeans.acc <- lsmeans(lmer.acc.fin, pairwise~species)
+```
+
+## plotting species difference
+```{r}
+plot.v1.means <- data.frame(lsmeans.v1$lsmeans)
+
+
+plot.acc.means <- data.frame(lsmeans.acc$lsmeans)
+
+plot.v1.lsmeans <- 
+  ggplot() +  
+  geom_point(data = plot.v1.means, aes(x = species, y = lsmean, color = species), alpha = 1) +
+  geom_errorbar(data = plot.v1.means, aes(x = species, ymin = lower.CL, ymax = upper.CL, color = species, width = 0.5),alpha = 1) +
+  scale_color_manual(values = c("bluti" ="black", "greti" = "black", "marti" = "black")) +
+  scale_x_discrete(labels = c("Blue Tit","Great Tit","Marsh Tit")) +
+  ylab(expression(initial~velocity~(m/s))) +
+  ylim(2.25,3.25)+
+  theme(axis.title.x=element_blank()) + #getting rid of x-axis title
+  theme(legend.position = "none")  #getting rid of legend
+
+plot.acc.lsmeans <- 
+  ggplot() +  
+  geom_point(data = plot.acc.means, aes(x = species, y = lsmean, color = species), alpha = 1) +
+  geom_errorbar(data = plot.acc.means, aes(x = species, ymin = lower.CL, ymax = upper.CL, color = species, width = 0.5),alpha = 1) +
+  scale_color_manual(values = c("bluti" = "#619CFF", "greti" = "#D55E00", "marti" = "grey")) +
+  scale_x_discrete(labels = c("Blue Tit","Great Tit","Marsh Tit")) +
+  ylab(expression(`in`-flight~acceleration~(m/s^2))) +
+  ylim(-2,6) +
+  theme(axis.title.x=element_blank()) + #getting rid of x-axis title
+  theme(legend.position = "none") #getting rid of legend
+
+grid.arrange(plot.v1.lsmeans, plot.acc.lsmeans, nrow = 1)
+```
+
+
+
+
