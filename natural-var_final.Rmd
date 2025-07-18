@@ -1199,7 +1199,60 @@ plot.acc.lsmeans <-
 
 grid.arrange(plot.v1.lsmeans, plot.acc.lsmeans, nrow = 1)
 ```
+### tarsus length
+```{r}
+species_tarsus <- nat.var %>% group_by(species) %>%
+  summarise(
+    Mean_Tarsus = mean(Tarsus, na.rm = TRUE),
+    SD_Tarsus = sd(Tarsus, na.rm = TRUE)
+  )
 
+species_tarsus
+```
+
+### rptR
+#### v1
+##### repeatability
+```{r}
+v1.rpt <- rpt(v1 ~ species + (1|Ring), data = nat.var, grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0)
+
+v1.rpt
+
+plot.v1.rpt <- plot(v1.rpt)
+
+```
+##### variance 
+```{r}
+v1.var <- rpt(v1 ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0,ratio = FALSE)
+
+v1.var
+
+plot.v1.var <- plot(v1.var)
+
+```
+#### acc
+##### repeatability
+```{r}
+acc.rpt <- rpt(acc ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0)
+
+acc.rpt
+
+```
+##### variance
+```{r}
+acc.var <- rpt(acc ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0,ratio = FALSE)
+
+acc.var
+
+```
+```{r}
+plot(v1.rpt, main = "individual repeatability for v1")
+plot(v1.var, main = "individual variance for v1")
+plot(acc.rpt, main = "individual repeatability for acc")
+plot(acc.var, main = "individual repeatability for acc")
+
+
+```
 
 
 
