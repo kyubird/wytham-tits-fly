@@ -1249,7 +1249,7 @@ acc.var
 plot(v1.rpt, main = "individual repeatability for v1")
 plot(v1.var, main = "individual variance for v1")
 plot(acc.rpt, main = "individual repeatability for acc")
-plot(acc.var, main = "individual repeatability for acc")
+plot(acc.var, main = "individual variance for acc")
 
 
 ```
