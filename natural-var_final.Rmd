@@ -13,7 +13,7 @@ output:
       smooth_scroll: false
 editor_options:
   chunk_output_type: console
-date: "2025-03-18"
+date: "2025-08-02"
 ---
 
 ```{r setup, include=FALSE}
@@ -60,34 +60,19 @@ library(sjPlot)
 ## dataset 
 ```{r}
 
-#in dept laptop
-#setwd("C:\\Users\\jesu4036\\OneDrive - Nexus365\\Documents\\R\\WythamWoods")
-#load all dates data 
-#all_dates3 <- read.delim(file = ".\\all_dates3.txt", sep = ",")
 
-#in the kyubird-laptop
-all_dates3 <- read.delim(file = "C:\\Users\\kmh\\Documents\\DATA\\2022-4\\paper\\all_dates3.txt", sep = ",") %>% distinct()
+all_dates3 <- read.delim(file = "C:\\Users\\kmh\\Documents\\GitHub\\wytham-tits-fly\\all_dates3.txt", sep = ",") %>% distinct()
 
 all_dates3$datetime.y <- as.POSIXct(all_dates3$datetime.y, format = "%Y-%m-%d %H:%M:%S")
 colnames(all_dates3)
 all_dates3 <- all_dates3 %>% 
   select(-Spec)
- 
 
-#load climate data 
-#in dept laptop 
-#climate <- read.delim(file = ".\\climate_filled.csv", sep = ',')
-
-#in the kyubird laptop
-climate <- read.delim(file = "C:\\Users\\kmh\\Documents\\DATA\\2022-4\\paper\\climate_filled.csv", sep = ',')
+climate <- read.delim(file = "C:\\Users\\kmh\\Documents\\GitHub\\wytham-tits-fly\\climate_filled.csv", sep = ',')
 
 climate$datetime <- as.POSIXct(climate$datetime, format = "%Y-%m-%d %H:%M:%S")
 
-#in the dept laptop 
-#caught.hour.day <- read.delim(file = ".\\caught.hour.day.csv", sep = ",")
-
-#in the kyubird laptop
-caught.hour.day <- read.delim(file = "C:\\Users\\kmh\\Documents\\DATA\\2022-4\\paper\\caught.hour.day.csv", sep = ',')
+caught.hour.day <- read.delim(file = "C:\\Users\\kmh\\Documents\\GitHub\\wytham-tits-fly\\caught.hour.day.csv", sep = ',')
 
 ```
 
@@ -431,9 +416,6 @@ indv_diff_avg.v <- ggplot(data= nat.var, aes(x=Ring, y=avg.v, fill = species)) +
 
 indv_diff_acc <- ggplot(data= nat.var, aes(x=Ring, y=acc, fill = species)) +
   geom_boxplot(alpha = 1)+ 
-  #stat_boxplot(geom = "errorbar", width = 0.5, color = "gray")+
-  #stat_summary(fun.y = mean, geom = "point", color = "red", size = 0.9)+
-  #stat_summary(fun.data = mean_sd, geom = "errorbar", width = 0.2, color = "red") +
   theme(legend.position = "none") +
   theme(axis.title.x=element_blank(),
         axis.text.x=element_blank(),
