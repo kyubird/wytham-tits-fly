@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 # Summary
 
-We analysed 1434 flights of 50 individuals of blue tit, great tit, and marsh tit to identify interspecific differences in take-off flight performance. We found significant difference in initial velocity and in-flight acceleration between species. Great tits showed higher initial velocity and lower in-flight acceleration than blue tits. Marsh tits did not differ in flight performance with other species. Weather conditions did not show significant effect to flight performance. 
+We analysed 1434 flights of 49 individuals of blue tit, great tit, and marsh tit to identify interspecific differences in take-off flight performance. We found significant difference in initial velocity and in-flight acceleration between species. Great tits showed higher initial velocity and lower in-flight acceleration than blue tits. Marsh tits did not differ in flight performance with other species. Weather conditions did not show significant effect to flight performance. 
 
 # I. Data 
 ## libraries 
@@ -61,19 +61,18 @@ library(rptR)
 ## dataset 
 ```{r}
 
-
-all_dates3 <- read.delim(file = "C:\\Users\\kmh\\Documents\\GitHub\\wytham-tits-fly\\all_dates3.txt", sep = ",") %>% distinct()
+all_dates3 <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\GitHub\\wytham-tits-fly\\all_dates3.txt", sep = ",") %>% distinct()
 
 all_dates3$datetime.y <- as.POSIXct(all_dates3$datetime.y, format = "%Y-%m-%d %H:%M:%S")
 colnames(all_dates3)
 all_dates3 <- all_dates3 %>% 
   select(-Spec)
 
-climate <- read.delim(file = "C:\\Users\\kmh\\Documents\\GitHub\\wytham-tits-fly\\climate_filled.csv", sep = ',')
+climate <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\GitHub\\wytham-tits-fly\\climate_filled.csv", sep = ',')
 
 climate$datetime <- as.POSIXct(climate$datetime, format = "%Y-%m-%d %H:%M:%S")
 
-caught.hour.day <- read.delim(file = "C:\\Users\\kmh\\Documents\\GitHub\\wytham-tits-fly\\caught.hour.day.csv", sep = ',')
+caught.hour.day <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\GitHub\\wytham-tits-fly\\caught.hour.day.csv", sep = ',')
 
 ```
 
@@ -990,13 +989,17 @@ lsmeans(lmer.acc, pairwise~ species)
 ## D. Best model selection {.tabset}
 ### automatic model averaging - with headwind 
 ```{r}
-summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+set.seed(583)
+summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
 
+set.seed(86)
 summary(model.avg(dredge(lmer(v2 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
 
-summary(model.avg(dredge(lmer(avg.v ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+set.seed(124)
+summary(model.avg(dredge(lmer(avg.v ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
 
-summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+set.seed(951)
+summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
 
 ```
 
@@ -1228,6 +1231,7 @@ acc.var <- rpt(acc ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", 
 acc.var
 
 ```
+
 ```{r}
 plot(v1.rpt, main = "individual repeatability for v1")
 plot(v1.var, main = "individual variance for v1")
@@ -1237,5 +1241,148 @@ plot(acc.var, main = "individual variance for acc")
 
 ```
 
+### Response to reviewers
 
+#### 1. Raw data graph of individual & species variance 
+##### v1
+```{r}
 
+# Calculate summary statistics: mean and ±1 SD per individual
+summary_df <- nat.var %>%
+  group_by(Ring, species) %>%
+  summarise(
+    mean_v1 = mean(v1, na.rm = TRUE),
+    sd_v1 = sd(v1, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_v1 - sd_v1,
+    sd_upper = mean_v1 + sd_v1
+  )
+
+species_summary <- nat.var %>%
+  group_by(species) %>%
+  summarise(
+    mean_v1 = mean(v1, na.rm = TRUE),
+    sd_v1 = sd(v1, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_v1 - sd_v1,
+    sd_upper = mean_v1 + sd_v1
+  )
+
+# Plot
+v1_var_graph <- ggplot(nat.var, aes(x = Ring, y = v1, color = species)) +
+  geom_jitter(width = 0.2, alpha = 0.5) +  # individual v1 dots
+  geom_point(data = summary_df, aes(x=Ring, y = mean_v1, color ="grey"), size = 2, shape = 16, inherit.aes = FALSE) +  # mean points
+  geom_errorbar(data = summary_df, aes(x=Ring, ymin = sd_lower, ymax = sd_upper, color = "grey"), width = 0.2, inherit.aes = FALSE) +  # ±1 SD
+  
+# Species-level overlaying in black
+  geom_point(data = species_summary, aes(x = Inf-0.5, y = mean_v1), color = "black", size = 4, shape = 18, inherit.aes = FALSE) +
+  geom_errorbar(data = species_summary, aes(x = Inf-0.5, ymin = sd_lower, ymax = sd_upper), color = "black", width = 0.4, inherit.aes = FALSE) +
+  facet_wrap(~ species, scales = "free_x", labeller = labeller(
+  species = c(
+    "bluti" = "Blue Tit",
+    "greti" = "Great Tit",
+    "marti" = "Marsh Tit" ))) +  # group by species
+  theme_minimal() +
+  labs(
+    x ="",
+    y = expression("Initial Velocity ("*m/s*")"),
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(
+  axis.text.x = element_blank(),     # hides x-axis labels
+  axis.ticks.x = element_blank(),    # hides x-axis ticks
+  legend.position = "none"
+)
+
+v1_var_graph
+```
+
+##### acc
+```{r}
+summary_df <- nat.var %>%
+  group_by(Ring, species) %>%
+  summarise(
+    mean_acc = mean(acc, na.rm = TRUE),
+    sd_acc = sd(acc, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_acc - sd_acc,
+    sd_upper = mean_acc + sd_acc
+  )
+
+species_summary <- nat.var %>%
+  group_by(species) %>%
+  summarise(
+    mean_acc = mean(acc, na.rm = TRUE),
+    sd_acc = sd(acc, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_acc - sd_acc,
+    sd_upper = mean_acc + sd_acc
+  )
+
+# Plot
+acc_var_graph <- ggplot(nat.var, aes(x = Ring, y = acc, color = species)) +
+  geom_jitter(width = 0.2, alpha = 0.5) +  # individual v1 dots
+  geom_point(data = summary_df, aes(x=Ring, y = mean_acc, color ="grey"), size = 2, shape = 16, inherit.aes = FALSE) +  # mean points
+  geom_errorbar(data = summary_df, aes(x=Ring, ymin = sd_lower, ymax = sd_upper, color = "grey"), width = 0.2, inherit.aes = FALSE) +  # ±1 SD
+  
+# Species-level overlaying in black
+  geom_point(data = species_summary, aes(x = Inf-0.5, y = mean_acc), color = "black", size = 4, shape = 18, inherit.aes = FALSE) +
+  geom_errorbar(data = species_summary, aes(x = Inf-0.5, ymin = sd_lower, ymax = sd_upper), color = "black", width = 0.4, inherit.aes = FALSE) +
+  facet_wrap(~ species, scales = "free_x", labeller = labeller(
+  species = c(
+    "bluti" = "",
+    "greti" = "",
+    "marti" = "" ))) +  
+  theme_minimal() +
+  labs(
+    x = "",
+    y = expression("In-flight acceleration ("*m/s^2*")")
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(
+   # hides x-axis ticks
+  axis.text.x = element_text(angle = 45),
+  legend.position = "none"
+)
+
+acc_var_graph
+```
+
+```{r}
+grid.arrange(v1_var_graph, acc_var_graph)
+```
+
+#### 2. Non-significance of weather effects
+##### v1
+###### headwind
+```{r}
+Anova(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
+
+summary(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3)
+
+min(nat.var$headwind)
+max(nat.var$headwind)
+mean(nat.var$headwind)
+sd(nat.var$headwind)
+```
+###### air temp
+```{r}
+Anova(lmer(v1 ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
+
+summary(lmer(v1 ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var), type = 3)
+
+```
+##### acc
+```{r}
+Anova(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
+
+summary(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3)
+```
