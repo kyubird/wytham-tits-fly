@@ -1356,6 +1356,7 @@ acc_var_graph <- ggplot(nat.var, aes(x = Ring, y = acc, color = species)) +
 acc_var_graph
 ```
 
+
 ```{r}
 grid.arrange(v1_var_graph, acc_var_graph)
 ```
@@ -1373,16 +1374,230 @@ max(nat.var$headwind)
 mean(nat.var$headwind)
 sd(nat.var$headwind)
 ```
-###### air temp
-```{r}
-Anova(lmer(v1 ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
-summary(lmer(v1 ~ species  + Sex  + age + air.temp + (1|Ring), data = nat.var), type = 3)
-
-```
 ##### acc
 ```{r}
 Anova(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
 summary(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3)
+```
+#### 3. Are interactions any significant?
+##### v1
+```{r}
+Anova(lmer(v1 ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
+
+summary(lmer(v1 ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3)
+```
+
+##### acc
+```{r}
+Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
+
+summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3)
+
+```
+
+##### v1 by species, age, and sex. 
+```{r}
+# filtering out those without sex
+nat.var_mf <- nat.var %>%
+  filter(Sex != "")
+
+  
+summary_df <- nat.var_mf %>%
+  group_by(Ring, species, Sex, age) %>%
+  summarise(
+    mean_v1 = mean(v1, na.rm = TRUE),
+    sd_v1 = sd(v1, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_v1 - sd_v1,
+    sd_upper = mean_v1 + sd_v1
+  )
+
+species_summary <- nat.var_mf %>%
+  group_by(species, Sex, age) %>%
+  summarise(
+    mean_v1 = mean(v1, na.rm = TRUE),
+    sd_v1 = sd(v1, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_v1 - sd_v1,
+    sd_upper = mean_v1 + sd_v1
+  )
+
+plot_v1_agesex <- ggplot(nat.var_mf, aes(x = Ring, y = v1)) +
+  geom_jitter(width = 0.2, alpha = 0.5, aes(color = species)) +
+  geom_point(data = summary_df, aes(x = Ring, y = mean_v1), color = "grey", size = 2, shape = 16, inherit.aes = FALSE) +
+  
+  geom_errorbar(data = summary_df, aes(x = Ring, ymin = sd_lower, ymax = sd_upper), color = "grey", width = 0.2,
+  inherit.aes = FALSE) +
+  
+  geom_point(data = species_summary, aes(x = Inf - 0.5, y = mean_v1), color = "black", size = 4, shape = 18,
+  inherit.aes = FALSE) +
+  
+  geom_errorbar(data = species_summary, aes(x = Inf - 0.5, ymin = sd_lower, ymax = sd_upper), color = "black", width = 0.4, inherit.aes = FALSE) +
+  facet_grid(species ~ Sex + age, labeller = labeller(
+    species = c("bluti" = "Blue Tit", "greti" = "Great Tit", "marti" = "Marsh Tit"),
+    Sex = label_value,
+    age = c("5" = "first year", "6" = "older")
+  )) +
+  theme_minimal() +
+  labs(
+    x = "",
+    y = expression("Initial Velocity ("*m/s*")")
+  ) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "none"
+  )
+
+plot_v1_agesex
+```
+
+##### acc by species, age, and sex. 
+```{r}
+# filtering out those without sex
+nat.var_mf <- nat.var %>%
+  filter(Sex != "")
+
+  
+summary_df <- nat.var_mf %>%
+  group_by(Ring, species, Sex, age) %>%
+  summarise(
+    mean_acc = mean(acc, na.rm = TRUE),
+    sd_acc = sd(acc, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_acc - sd_acc,
+    sd_upper = mean_acc + sd_acc
+  )
+
+species_summary <- nat.var_mf %>%
+  group_by(species, Sex, age) %>%
+  summarise(
+    mean_acc = mean(acc, na.rm = TRUE),
+    sd_acc = sd(acc, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    sd_lower = mean_acc - sd_acc,
+    sd_upper = mean_acc + sd_acc
+  )
+
+plot_acc_agesex <- ggplot(nat.var_mf, aes(x = Ring, y = acc)) +
+  geom_jitter(width = 0.2, alpha = 0.5, aes(color = species)) +
+  geom_point(data = summary_df, aes(x = Ring, y = mean_acc), color = "grey", size = 2, shape = 16, inherit.aes = FALSE) +
+  
+  geom_errorbar(data = summary_df, aes(x = Ring, ymin = sd_lower, ymax = sd_upper), color = "grey", width = 0.2,
+  inherit.aes = FALSE) +
+  
+  geom_point(data = species_summary, aes(x = Inf - 0.5, y = mean_acc), color = "black", size = 4, shape = 18,
+  inherit.aes = FALSE) +
+  
+  geom_errorbar(data = species_summary, aes(x = Inf - 0.5, ymin = sd_lower, ymax = sd_upper), color = "black", width = 0.4, inherit.aes = FALSE) +
+  facet_grid(species ~ Sex + age, labeller = labeller(
+    species = c("bluti" = "Blue Tit", "greti" = "Great Tit", "marti" = "Marsh Tit"),
+    Sex = label_value,
+    age = c("5" = "first year", "6" = "older")
+  )) +
+  theme_minimal() +
+  labs(
+    x = "",
+    y = expression("In-flight acceleration ("*m/s^2*")")
+  ) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.position = "none"
+  )
+
+plot_acc_agesex
+```
+
+- identify the only great tit adult female
+- filter that superbird and see if the acceleration still shows interaction effect with sex and age
+```{r}
+
+super_ladybird <- nat.var_mf %>%
+  filter((species == "greti") & (Sex == "F") & (age == 6))
+
+super_ladybird$Ring
+super_ladybird$acc
+
+nat.var_mf_ordinary <- nat.var_mf %>%
+  filter(Ring != "TY68155")
+
+#before
+Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf), type = 3, test.statistic = "F")
+
+summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf), type = 3)
+
+#after
+Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf_ordinary), type = 3, test.statistic = "F")
+
+summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf_ordinary), type = 3)
+
+# the interaction effect disappears when the one extraordinary flight of adult female is excluded.
+```
+- acc: great tit mean & great tit female mean
+```{r}
+
+great_tit_overall <- nat.var_mf_ordinary %>%
+  filter(species == "greti") %>%
+  summarise(
+    mean_acc = mean(acc, na.rm = TRUE),
+    sd_acc = sd(acc, na.rm = TRUE)
+  )
+
+great_tit_female <- nat.var_mf_ordinary %>%
+  filter(species == "greti", Sex == "F") %>%
+  summarise(
+    mean_acc = mean(acc, na.rm = TRUE),
+    sd_acc = sd(acc, na.rm = TRUE)
+  )
+
+great_tit_overall
+great_tit_female
+
+```
+
+#### 4. temporal resolution
+```{r}
+
+nat.var$temp_res <- (1/nat.var$v1)*0.03
+mean(nat.var$temp_res)
+sd(nat.var$temp_res)
+min(nat.var$temp_res)
+max(nat.var$temp_res)
+
+nat.var_temp_res <- nat.var %>%
+  filter(temp_res <= 0.013)
+```
+
+##### v1
+```{r}
+Anova(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3, test.statistic = "F")
+
+summary(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3)
+
+```
+
+##### acc
+```{r}
+Anova(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3, test.statistic = "F")
+
+summary(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3)
+```
+-species is still significant! 
+
+```{r}
+dim(nat.var_temp_res)
+unique(nat.var_temp_res$Ring) #48 individuals 
+
+
 ```
