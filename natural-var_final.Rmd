@@ -13,7 +13,7 @@ output:
       smooth_scroll: false
 editor_options:
   chunk_output_type: console
-date: "2025-08-02"
+date: "2025-11-08"
 ---
 
 ```{r setup, include=FALSE}
@@ -612,7 +612,7 @@ grid.arrange(age_diff_v1, age_diff_v2, age_diff_avg.v, age_diff_acc, nrow = 2)
 
 
 ## B. climate factors {.tabset}
-### 5.1 headwind
+### 1. headwind
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
 headwind_v1 <- ggplot(data=nat.var, aes(x = headwind, y= v1, color = species)) +
   geom_point(size = 1, alpha = 0.5) + geom_smooth(method ="lm") +
@@ -650,7 +650,7 @@ grid.arrange(headwind_v1, headwind_acc, nrow = 1)
 
 ```
 
-### 5.2 air temperature
+### 2. air temperature
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
 air.temp_v1 <- ggplot(data=all_dates3.climate, aes(x = air.temp, y=v1, color = species)) +
   geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
@@ -679,7 +679,7 @@ air.temp_acc <- ggplot(data=all_dates3.climate, aes(x = air.temp, y=acc, color =
 grid.arrange(air.temp_v1, air.temp_v2, air.temp_avg.v, air.temp_acc, nrow = 2)
 ```
 
-### 5.3 humidity
+### 3. humidity
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
 humidity_v1 <- ggplot(data=all_dates3.climate, aes(x = humidity, y=v1, color = species)) +
   geom_point(size = 1, alpha = 0.1) + geom_smooth(method ="lm") +
@@ -892,7 +892,7 @@ dim(nat.var.out) #1419 observations
 ```
 
 ## B. Linear mixed model assumptions 
-### normality tests {.tabset} 
+### 1. normality tests {.tabset} 
 ```{r}
 # Computes the default residuals (raw conditional)
 raw_cond.v1 <- compute_redres(lmer.v1)
@@ -918,7 +918,7 @@ shapiro.test(raw_cond.acc) #p <0.05
 ```
 
 
-### checking assumption graphs {.tabset}
+### 2. checking assumption graphs {.tabset}
 #### initial velocity  
 ```{r}
 plot(nat.var$headwind, nat.var$v1) #linearity
@@ -986,8 +986,9 @@ summary(lmer.acc)
 lsmeans(lmer.acc, pairwise~ species) 
 ```
 
-## D. Best model selection {.tabset}
-### automatic model averaging - with headwind 
+# IV. Best model selection {.tabset}
+## A. automatic model averaging 
+### with headwind 
 ```{r}
 set.seed(583)
 summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
@@ -1003,7 +1004,7 @@ summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + headwind + (1|Ring), 
 
 ```
 
-### automatic model averaging - with air.temp 
+### with air.temp 
 ```{r}
 summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + air.temp + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
 
@@ -1015,7 +1016,7 @@ summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + air.temp + (1|Ring), 
 
 ```
 
-### final models
+## B. final models
 ```{r}
 lmer.v1.fin <- lmer(v1 ~ species + (1|Ring), data = nat.var)
 lmer.v2.fin <- lmer(v2 ~ headwind + (1|Ring), data = nat.var)
@@ -1029,10 +1030,10 @@ lmer.avg.v.fin.out <- lmer(avg.v ~ headwind + (1|Ring), data = nat.var.out)
 lmer.acc.fin.out <- lmer(acc ~ species  + Sex + (1|Ring), data = nat.var.out)
 
 ```
-## E. checking best model assumptions {.tabset}  
+## C. checking best model assumptions {.tabset}  
 Acceleration is skipped as the best model was the full model, acceleration only had one outlier, and the full model assumptions were well validated.   
   
-### normality tests {.tabset}   
+## D. normality tests {.tabset}   
 ```{r}
 # Computes the default residuals (raw conditional)
 raw_cond.v1.fin <- compute_redres(lmer.v1.fin)
@@ -1049,36 +1050,36 @@ raw_cond.acc.fin <- compute_redres(lmer.acc.fin)
 raw_cond.acc.fin.out <- compute_redres(lmer.acc.fin.out)
 
 ```
-#### initial velocity
+### initial velocity
 ```{r}
 shapiro.test(raw_cond.v1.fin)
 shapiro.test(raw_cond.v1.fin.out)
 ```
 
-#### end velocity
+### end velocity
 ```{r}
 shapiro.test(raw_cond.v2.fin)
 shapiro.test(raw_cond.v2.fin.out)
 ```
-#### average velocity
+### average velocity
 ```{r}
 shapiro.test(raw_cond.avg.v.fin)
 shapiro.test(raw_cond.avg.v.fin.out)
 ```
-#### end velocity
+### end velocity
 ```{r}
 shapiro.test(raw_cond.acc.fin)
 shapiro.test(raw_cond.acc.fin.out)
 ```
 
-#### acceleration
+### acceleration
 ```{r}
 shapiro.test(raw_cond.acc.fin)
 shapiro.test(raw_cond.acc.fin.out)
 ```
 
-### checking assumptions - no outliers vs. outliers {.tabset}      
-#### initial velocity      
+## E. checking assumptions - no outliers vs. outliers {.tabset}      
+### initial velocity      
 ```{r}
 hist(raw_cond.v1.fin) #normality in histogram
 hist(raw_cond.v1.fin.out)
@@ -1091,7 +1092,7 @@ plot_ranef(lmer.v1.fin.out)
 ```
 
 
-#### end velocity  
+### end velocity  
 ```{r}
 hist(raw_cond.v2.fin) #normality in histogram
 hist(raw_cond.v2.fin.out)
@@ -1104,7 +1105,7 @@ plot_ranef(lmer.v2.fin.out)
 ```
 
 
-#### average velocity   
+### average velocity   
 ```{r}
 hist(raw_cond.avg.v.fin) #normality in histogram
 hist(raw_cond.avg.v.fin.out)
@@ -1154,12 +1155,10 @@ lsmeans(lmer.acc.fin, pairwise~species)
 lsmeans.acc <- lsmeans(lmer.acc.fin, pairwise~species)
 ```
 
-## plotting species difference
+## G. plotting species difference
+### v1
 ```{r}
 plot.v1.means <- data.frame(lsmeans.v1$lsmeans)
-
-
-plot.acc.means <- data.frame(lsmeans.acc$lsmeans)
 
 plot.v1.lsmeans <- 
   ggplot() +  
@@ -1171,6 +1170,11 @@ plot.v1.lsmeans <-
   ylim(2.25,3.25)+
   theme(axis.title.x=element_blank()) + #getting rid of x-axis title
   theme(legend.position = "none")  #getting rid of legend
+```
+### acc
+```{r}
+
+plot.acc.means <- data.frame(lsmeans.acc$lsmeans)
 
 plot.acc.lsmeans <- 
   ggplot() +  
@@ -1196,9 +1200,9 @@ species_tarsus <- nat.var %>% group_by(species) %>%
 species_tarsus
 ```
 
-### rptR
-#### v1
-##### repeatability
+# V. Repeatability
+## v1
+### repeatability
 ```{r}
 v1.rpt <- rpt(v1 ~ species + (1|Ring), data = nat.var, grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0)
 
@@ -1207,7 +1211,7 @@ v1.rpt
 plot.v1.rpt <- plot(v1.rpt)
 
 ```
-##### variance 
+#### variance 
 ```{r}
 v1.var <- rpt(v1 ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0,ratio = FALSE)
 
@@ -1216,22 +1220,22 @@ v1.var
 plot.v1.var <- plot(v1.var)
 
 ```
-#### acc
-##### repeatability
+## acc
+### repeatability
 ```{r}
 acc.rpt <- rpt(acc ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0)
 
 acc.rpt
 
 ```
-##### variance
+### variance
 ```{r}
 acc.var <- rpt(acc ~ species  + Sex + (1|Ring), data = nat.var,grname = "Ring", datatype = "Gaussian", nboot = 10000, npermut = 0,ratio = FALSE)
 
 acc.var
 
 ```
-
+## PLOTS
 ```{r}
 plot(v1.rpt, main = "individual repeatability for v1")
 plot(v1.var, main = "individual variance for v1")
@@ -1241,10 +1245,10 @@ plot(acc.var, main = "individual variance for acc")
 
 ```
 
-### Response to reviewers
+# VI. Response to reviewers
 
-#### 1. Raw data graph of individual & species variance 
-##### v1
+## 1. Raw data graph of individual & species variance 
+### v1
 ```{r}
 
 # Calculate summary statistics: mean and ±1 SD per individual
@@ -1301,7 +1305,7 @@ v1_var_graph <- ggplot(nat.var, aes(x = Ring, y = v1, color = species)) +
 v1_var_graph
 ```
 
-##### acc
+### acc
 ```{r}
 summary_df <- nat.var %>%
   group_by(Ring, species) %>%
@@ -1356,14 +1360,9 @@ acc_var_graph <- ggplot(nat.var, aes(x = Ring, y = acc, color = species)) +
 acc_var_graph
 ```
 
-
-```{r}
-grid.arrange(v1_var_graph, acc_var_graph)
-```
-
-#### 2. Non-significance of weather effects
-##### v1
-###### headwind
+## 2. Non-significance of weather effects
+### v1
+#### headwind
 ```{r}
 Anova(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
@@ -1381,15 +1380,15 @@ Anova(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), t
 
 summary(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3)
 ```
-#### 3. Are interactions any significant?
-##### v1
+## 3. Are interactions any significant?
+### v1
 ```{r}
 Anova(lmer(v1 ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
 summary(lmer(v1 ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3)
 ```
 
-##### acc
+### acc
 ```{r}
 Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
@@ -1397,7 +1396,7 @@ summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type 
 
 ```
 
-##### v1 by species, age, and sex. 
+### v1 by species, age, and sex. 
 ```{r}
 # filtering out those without sex
 nat.var_mf <- nat.var %>%
@@ -1458,7 +1457,7 @@ plot_v1_agesex <- ggplot(nat.var_mf, aes(x = Ring, y = v1)) +
 plot_v1_agesex
 ```
 
-##### acc by species, age, and sex. 
+### acc by species, age, and sex. 
 ```{r}
 # filtering out those without sex
 nat.var_mf <- nat.var %>%
@@ -1566,9 +1565,9 @@ great_tit_female
 
 ```
 
-#### 4. temporal resolution
+## 4. temporal resolution
+- filtering the flights with the same or better temporal resolution of 0.013 s 
 ```{r}
-
 nat.var$temp_res <- (1/nat.var$v1)*0.03
 mean(nat.var$temp_res)
 sd(nat.var$temp_res)
@@ -1579,7 +1578,7 @@ nat.var_temp_res <- nat.var %>%
   filter(temp_res <= 0.013)
 ```
 
-##### v1
+### v1
 ```{r}
 Anova(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3, test.statistic = "F")
 
@@ -1587,17 +1586,42 @@ summary(lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_te
 
 ```
 
-##### acc
+### acc
 ```{r}
 Anova(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3, test.statistic = "F")
 
 summary(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var_temp_res), type = 3)
 ```
 -species is still significant! 
-
+- however the 0.013s time difference came from the original 1434 flights data. 
 ```{r}
 dim(nat.var_temp_res)
 unique(nat.var_temp_res$Ring) #48 individuals 
+```
+- comparing the exit time again in this dataset
+```{r}
+
+new_exit_time <- nat.var_temp_res %>%
+  group_by(species) %>%
+  summarise(
+    mean_t1 = mean(t1, na.rm = TRUE),
+    sd_t1 = sd(t1, na.rm = TRUE)
+  )
+new_exit_time
+
+```
 
 
+## 5. bodyweight 
+- bare in mind these are not bodyweight at the time of flight but rather bodyweight that was ever measured of that individual through mist-netting 
+```{r}
+# calculate mean and sd of bodyweight per species
+bw_species <- nat.var %>%
+  group_by(species) %>%
+  summarise(
+    n = n(),
+    mean_bodyweight = mean(Wt, na.rm = TRUE),
+    sd_bodyweight = sd(Wt, na.rm = TRUE)
+  )
+bw_species
 ```
