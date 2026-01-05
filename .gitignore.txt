@@ -1,3 +1,0 @@
-# Ignore R workspace and history files
-.RData
-.Rhistory

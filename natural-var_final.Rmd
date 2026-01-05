@@ -61,18 +61,18 @@ library(rptR)
 ## dataset 
 ```{r}
 
-all_dates3 <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\GitHub\\wytham-tits-fly\\all_dates3.txt", sep = ",") %>% distinct()
+all_dates3 <- read.delim("C:\\Users\\jesu4036\\Documents\\wytham-tits-fly\\all_dates3.txt", sep = ",") %>% distinct()
 
 all_dates3$datetime.y <- as.POSIXct(all_dates3$datetime.y, format = "%Y-%m-%d %H:%M:%S")
 colnames(all_dates3)
 all_dates3 <- all_dates3 %>% 
   select(-Spec)
 
-climate <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\GitHub\\wytham-tits-fly\\climate_filled.csv", sep = ',')
+climate <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\wytham-tits-fly\\climate_filled.csv", sep = ',')
 
 climate$datetime <- as.POSIXct(climate$datetime, format = "%Y-%m-%d %H:%M:%S")
 
-caught.hour.day <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\GitHub\\wytham-tits-fly\\caught.hour.day.csv", sep = ',')
+caught.hour.day <- read.delim(file = "C:\\Users\\jesu4036\\Documents\\wytham-tits-fly\\caught.hour.day.csv", sep = ',')
 
 ```
 
@@ -828,10 +828,10 @@ cor.chart = chart.Correlation(all_dates3.climate[,34:38], histogram=TRUE, pch=19
 ### 2. Proposed Mixed Linear Models.
 #### with headwind
 ```{r}
-lmer.v1 = lmer(v1 ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var)
-lmer.v2 = lmer(v2 ~species  + Sex  + age + headwind + (1|Ring), data = nat.var)
-lmer.avg.v = lmer(avg.v ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var)
-lmer.acc = lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var)
+lmer.v1 = lmer(v1 ~ species  + Sex  + age + (-headwind) + (1|Ring), data = nat.var)
+lmer.v2 = lmer(v2 ~species  + Sex  + age + (-headwind) + (1|Ring), data = nat.var)
+lmer.avg.v = lmer(avg.v ~ species  + Sex  + age + (-headwind) + (1|Ring), data = nat.var)
+lmer.acc = lmer(acc ~ species  + Sex  + age + (-headwind) + (1|Ring), data = nat.var)
 
 ```
 
@@ -989,22 +989,47 @@ lsmeans(lmer.acc, pairwise~ species)
 # IV. Best model selection {.tabset}
 ## A. automatic model averaging 
 ### with headwind 
+#### v1 and acc
+##### no interaction
 ```{r}
 set.seed(583)
 summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
 
+set.seed(951)
+summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+```
+##### interaction
+```{r}
+set.seed(583)
+summary(model.avg(dredge(lmer(v1 ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+
+set.seed(951)
+summary(model.avg(dredge(lmer(acc ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+
+
+```
+#### v2 and avg.v
+- tried log(response variable), but still same result of just headwind.
+```{r}
+set.seed(86)
+summary(model.avg(dredge(lmer(log(v2) ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+set.seed(124)
+summary(model.avg(dredge(lmer(log(avg.v) ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+
+```
+- without logging
+```{r}
 set.seed(86)
 summary(model.avg(dredge(lmer(v2 ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
 
 set.seed(124)
 summary(model.avg(dredge(lmer(avg.v ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
 
-set.seed(951)
-summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
-
 ```
 
 ### with air.temp 
+- In avg.v and v2 models, (Null) with no predictors better than any other combination of predictors by deltaAIC of 4.20 and 5.07 respectively. 
 ```{r}
 summary(model.avg(dredge(lmer(v1 ~ species  + Sex + age + air.temp + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
 
@@ -1019,14 +1044,14 @@ summary(model.avg(dredge(lmer(acc ~ species  + Sex + age + air.temp + (1|Ring), 
 ## B. final models
 ```{r}
 lmer.v1.fin <- lmer(v1 ~ species + (1|Ring), data = nat.var)
-lmer.v2.fin <- lmer(v2 ~ headwind + (1|Ring), data = nat.var)
-lmer.avg.v.fin <- lmer(avg.v ~ headwind + (1|Ring), data = nat.var)
+lmer.v2.fin <- lmer(v2 ~ I(-headwind) + (1|Ring), data = nat.var)
+lmer.avg.v.fin <- lmer(avg.v ~ I(-headwind) + (1|Ring), data = nat.var)
 lmer.acc.fin <- lmer(acc ~ species  + Sex + (1|Ring), data = nat.var)
 
 #without outliers
 lmer.v1.fin.out <- lmer(v1 ~ species + (1|Ring), data = nat.var.out)
-lmer.v2.fin.out <- lmer(v2 ~ headwind + (1|Ring), data = nat.var.out)
-lmer.avg.v.fin.out <- lmer(avg.v ~ headwind + (1|Ring), data = nat.var.out)
+lmer.v2.fin.out <- lmer(v2 ~ I(-headwind) + (1|Ring), data = nat.var.out)
+lmer.avg.v.fin.out <- lmer(avg.v ~ I(-headwind) + (1|Ring), data = nat.var.out)
 lmer.acc.fin.out <- lmer(acc ~ species  + Sex + (1|Ring), data = nat.var.out)
 
 ```
@@ -1093,6 +1118,7 @@ plot_ranef(lmer.v1.fin.out)
 
 
 ### end velocity  
+- model without outliers is better but still deviation in normality of residuals graph
 ```{r}
 hist(raw_cond.v2.fin) #normality in histogram
 hist(raw_cond.v2.fin.out)
@@ -1103,9 +1129,22 @@ plot_resqq(lmer.v2.fin.out)
 plot_ranef(lmer.v2.fin) #normality of random effects residuals
 plot_ranef(lmer.v2.fin.out) 
 ```
+#### trying data transformation
+```{r}
 
+lmer.v2.fin.out.log <- lmer(log(v2) ~ headwind + (1|Ring), data = nat.var.out)
+
+raw_cond.v2.fin.out.log <- compute_redres(lmer.v2.fin.out.log)
+
+hist(raw_cond.v2.fin.out.log)
+plot_redres(lmer.v2.fin.out.log)
+plot_resqq(lmer.v2.fin.out.log) #still not good
+plot_ranef(lmer.v2.fin.out.log) #fine
+
+```
 
 ### average velocity   
+- model without outliers is better but still deviation in normality of residuals graph
 ```{r}
 hist(raw_cond.avg.v.fin) #normality in histogram
 hist(raw_cond.avg.v.fin.out)
@@ -1115,6 +1154,18 @@ plot_resqq(lmer.avg.v.fin) #normality of residuals
 plot_resqq(lmer.avg.v.fin.out)
 plot_ranef(lmer.avg.v.fin) #normality of random effects residuals
 plot_ranef(lmer.avg.v.fin.out)
+```
+#### trying data transformation
+```{r}
+
+lmer.avg.v.fin.out.log <- lmer(log(avg.v) ~ headwind + (1|Ring), data = nat.var.out)
+
+raw_cond.avg.v.fin.out.log <- compute_redres(lmer.avg.v.fin.out.log)
+
+plot_redres(lmer.avg.v.fin.out.log)
+plot_resqq(lmer.avg.v.fin.out.log) #not good
+plot_ranef(lmer.avg.v.fin.out.log) #good
+
 ```
 
 
@@ -1135,6 +1186,7 @@ lsmeans.v1 <- lsmeans(lmer.v1.fin, pairwise~species)
 Anova(lmer.v2.fin, type = 3, test.statistic = "F") #species and headwind
 Anova(lmer.v2.fin.out, type = 3, test.statistic = "F")
 summary(lmer.v2.fin)
+tab_model(lmer.v2.fin)
 
 ```
 ### average velocity
@@ -1142,6 +1194,7 @@ summary(lmer.v2.fin)
 Anova(lmer.avg.v.fin, type = 3, test.statistic = "F") #species and headwind
 Anova(lmer.avg.v.fin.out, type = 3, test.statistic = "F")
 summary(lmer.avg.v.fin)
+tab_model(lmer.avg.v.fin)
 
 ```
 ### acceleration
@@ -1151,7 +1204,11 @@ Anova(lmer.acc.fin.out, type = 3, test.statistic = "F")
 summary(lmer.acc.fin)
 tab_model(lmer.acc.fin)
 
+#by species
 lsmeans(lmer.acc.fin, pairwise~species)
+
+#by sex
+lsmeans(lmer.acc.fin, pairwise~Sex)
 lsmeans.acc <- lsmeans(lmer.acc.fin, pairwise~species)
 ```
 
@@ -1293,13 +1350,15 @@ v1_var_graph <- ggplot(nat.var, aes(x = Ring, y = v1, color = species)) +
   theme_minimal() +
   labs(
     x ="",
-    y = expression("Initial Velocity ("*m/s*")"),
+    y = expression("Initial velocity (m/s)"),
   ) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
   theme(
   axis.text.x = element_blank(),     # hides x-axis labels
   axis.ticks.x = element_blank(),    # hides x-axis ticks
-  legend.position = "none"
+  legend.position = "none",
+  strip.text = element_text(size = 18),
+  axis.title.y = element_text(size = 18)
 )
 
 v1_var_graph
@@ -1348,16 +1407,26 @@ acc_var_graph <- ggplot(nat.var, aes(x = Ring, y = acc, color = species)) +
   theme_minimal() +
   labs(
     x = "",
-    y = expression("In-flight acceleration ("*m/s^2*")")
+    y = expression("In-flight acceleration (" * m/s^2 * ")")
   ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  #theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   theme(
    # hides x-axis ticks
-  axis.text.x = element_text(angle = 45),
-  legend.position = "none"
+  axis.text.x = element_blank(),     # hides x-axis labels
+  axis.ticks.x = element_blank(),    # hides x-axis ticks
+  legend.position = "none",
+  axis.title.y = element_text(size = 18)
+  #strip.text = element_text(size = 16, face = "bold")
 )
 
 acc_var_graph
+```
+
+### final plots
+```{r}
+
+ggarrange(v1_var_graph, acc_var_graph, nrow =2 )
+
 ```
 
 ## 2. Non-significance of weather effects
@@ -1395,7 +1464,27 @@ Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 
 summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3)
 
 ```
+### model averaging with headwind 
+#### v1 
+```{r}
+set.seed(583)
+summary(model.avg(dredge(lmer(v1 ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+```
+#### acc with superbird
+```{r}
+set.seed(951)
+summary(model.avg(dredge(lmer(acc ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5)) #(Sex + species + Sex:species)
+```
+#### v2 and avg.v
+- tried log(response variable), but still same result of just headwind.
+```{r}
+set.seed(86)
+summary(model.avg(dredge(lmer(v2 ~ species * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
 
+set.seed(124)
+summary(model.avg(dredge(lmer(avg.v ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+
+```
 ### v1 by species, age, and sex. 
 ```{r}
 # filtering out those without sex
@@ -1531,15 +1620,100 @@ super_ladybird$acc
 nat.var_mf_ordinary <- nat.var_mf %>%
   filter(Ring != "TY68155")
 
+# with the entire dataset
+nat.var_superbird <- nat.var %>%
+  filter((species == "greti") & (Sex == "F") & (age == 6))
+
+
+nat.var_normal <- nat.var %>%
+  filter(!((species == "greti") & (Sex == "F") & (age == 6)))
+
+dim(nat.var_normal)
+```
+
+
+#### acc model averaging without superbird
+```{r}
+
+set.seed(951)
+summary(model.avg(dredge(lmer(acc ~ species  * Sex * age + I(-headwind) + (1|Ring), data = nat.var_normal, na.action = "na.fail")), subset = delta <  5)) #(Sex + species + Sex:species)
+
+```
+### Model results with and without superbird
+```{r}
+
+lmer.acc.fin.super <- lmer(acc ~ species*Sex*age + (1|Ring), data = nat.var)
+
+
+
+lmer.acc.fin.normal <- lmer(acc ~ species*Sex*age + (1|Ring), data = nat.var_normal)
+
+
+```
+#### with
+##### stats
+```{r}
 #before
-Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf), type = 3, test.statistic = "F")
+Anova(lmer.acc.fin.super, type = 3, test.statistic = "F")
 
-summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf), type = 3)
+acc.super <- lsmeans(lmer.acc.fin.super, pairwise~(species:Sex:age))
+#summary(lmer.acc.fin.super, type = 3)
+```
+##### plots
+```{r}
+acc.super.plot <- as.data.frame(acc.super$lsmeans) %>% 
+  tidyr::drop_na() %>%
+  dplyr::filter(Sex != "")
 
+acc.super.plot
+```
+
+```{r}
+
+# Ensure categorical variables are factors with nice orderings/labels (optional)
+acc.super.plot <- acc.super.plot %>%
+  mutate(
+    species = factor(species, levels = c("bluti", "greti"),
+                     labels = c("Blue tit", "Great tit")),
+    Sex     = factor(Sex, levels = c("F", "M"),
+                     labels = c("Female", "Male")),
+    age     = factor(age, levels = c(5, 6), 
+                     labels = c("first year", "older"))  # facet as categorical (5, 6)
+  )
+```
+```{r}
+# --- Plot: means with 95% CI, dodged by Sex, facetted by age ---
+#pd <- position_dodge(width = 0.5)
+
+p <- ggplot(acc.super.plot, aes(x = species, y = lsmean, color = Sex, shape = Sex)) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL),
+                width = 0.15, position = position_dodge(width = 0.5), linewidth = 0.7) +
+  geom_point(size = 3, position = position_dodge(width = 0.5)) +
+  facet_wrap(~ age, nrow = 1, labeller = labeller(age = label_both)) +
+  labs(
+    x = "Species",
+    y = "Mean (lsmean) with 95% CI",
+    color = "Sex",
+    shape = "Sex",
+    title = "Estimated means and 95% CIs by species, sex, and age"
+  ) +
+  #scale_color_manual(values = c("Female" = "#3b82f6", "Male" = "#ef4444")) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.spacing = unit(1, "lines"),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    legend.position = "right",
+    strip.text = element_text(face = "bold")
+  )
+
+p
+```
+#### without
+```{r}
 #after
-Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf_ordinary), type = 3, test.statistic = "F")
+Anova(lmer.acc.fin.normal, type = 3, test.statistic = "F")
 
-summary(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var_mf_ordinary), type = 3)
+#summary(lmer.acc.fin.normal, type = 3)
 
 # the interaction effect disappears when the one extraordinary flight of adult female is excluded.
 ```
