@@ -1,0 +1,6 @@
+# Ignore R workspace and history files
+.RData
+.Rhistory
+
+# Ignore Figures folder
+/figures
