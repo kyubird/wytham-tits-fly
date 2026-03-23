@@ -330,23 +330,28 @@ t.test(climate.nat.var$humidity, climate.capt.eff$humidity, paired = FALSE, var.
 raw.flight.metrics <- nat.var %>%
   group_by(species) %>%
   summarise(mean.v1 = mean(v1, na.rm = FALSE),
-            mean.v2 = mean(v2, na.rm = FALSE),
-            mean.acc = mean(acc, na.rm = FALSE),
-            mean.avg.v = mean(avg.v, na.rm = FALSE),
-            mean.t1 = mean(t1, na.rm = FALSE),
-            mean.t2 = mean(t2, na.rm = FALSE),
-            mean.t3 = mean((t1+t2), na.rm = FALSE),
             sd.v1 = sd(v1, na.rm = FALSE),
+            
+            mean.v2 = mean(v2, na.rm = FALSE),
             sd.v2 = sd(v2, na.rm = FALSE),
+            
+            mean.acc = mean(acc, na.rm = FALSE),
             sd.acc = sd(acc, na.rm = FALSE),
+            
+            mean.avg.v = mean(avg.v, na.rm = FALSE),
             sd.avg.v = sd(avg.v, na.rm = FALSE),
+            
+            mean.t1 = mean(t1, na.rm = FALSE),
             sd.t1 = sd(t1, na.rm = FALSE),
+            
+            mean.t2 = mean(t2, na.rm = FALSE),
             sd.t2 = sd(t2, na.rm = FALSE),
-            sd.t3 = sd((t1+t2), na.rm = FALSE)
-            ) %>%
+            
+            mean.t3 = mean((t1+t2), na.rm = FALSE),
+            sd.t3 = sd((t1+t2), na.rm = FALSE)) %>%
             na.omit()
 
-raw.flight.metrics
+raw.flight.metrics <- t(raw.flight.metrics)
 
 
 
@@ -1304,7 +1309,7 @@ plot(acc.var, main = "individual variance for acc")
 
 # VI. Response to reviewers
 
-## 1. Raw data graph of individual & species variance 
+## A. Raw data graph of individual & species variance 
 ### v1
 ```{r}
 
@@ -1422,14 +1427,14 @@ acc_var_graph <- ggplot(nat.var, aes(x = Ring, y = acc, color = species)) +
 acc_var_graph
 ```
 
-### final plots
+### Figure S3
 ```{r}
 
 ggarrange(v1_var_graph, acc_var_graph, nrow =2 )
 
 ```
 
-## 2. Non-significance of weather effects
+## B. Non-significance of weather effects
 ### v1
 #### headwind
 ```{r}
@@ -1443,21 +1448,42 @@ mean(nat.var$headwind)
 sd(nat.var$headwind)
 ```
 
-##### acc
+### acc
 ```{r}
 Anova(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
 summary(lmer(acc ~ species  + Sex  + age + headwind + (1|Ring), data = nat.var), type = 3)
 ```
-## 3. Are interactions any significant?
-### v1
+## C. v2 and avg.v ~ headwind
+### v2 and avg.v model averaging
+- tried log(response variable), but still same result of just headwind.
+```{r}
+set.seed(86)
+summary(model.avg(dredge(lmer(v2 ~ species * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
+
+set.seed(124)
+summary(model.avg(dredge(lmer(avg.v ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
+```
+#### raw plots
+```{r}
+plot(nat.var$headwind, nat.var$v2)
+```
+```{r}
+plot(nat.var$headwind, nat.var$avg.v)
+```
+#### plot accounting for individuals
+```{r}
+
+```
+## D. Are interactions any significant?
+#### v1
 ```{r}
 Anova(lmer(v1 ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
 summary(lmer(v1 ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3)
 ```
 
-### acc
+#### acc
 ```{r}
 Anova(lmer(acc ~ species*Sex*age + headwind + (1|Ring), data = nat.var), type = 3, test.statistic = "F")
 
@@ -1475,17 +1501,10 @@ summary(model.avg(dredge(lmer(v1 ~ species  * Sex * age + headwind + (1|Ring), d
 set.seed(951)
 summary(model.avg(dredge(lmer(acc ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5)) #(Sex + species + Sex:species)
 ```
-#### v2 and avg.v
-- tried log(response variable), but still same result of just headwind.
-```{r}
-set.seed(86)
-summary(model.avg(dredge(lmer(v2 ~ species * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  10))
 
-set.seed(124)
-summary(model.avg(dredge(lmer(avg.v ~ species  * Sex * age + headwind + (1|Ring), data = nat.var, na.action = "na.fail")), subset = delta <  5))
 
-```
-### v1 by species, age, and sex. 
+### Figure S4
+#### v1 by species, age, and sex. 
 ```{r}
 # filtering out those without sex
 nat.var_mf <- nat.var %>%
@@ -1530,23 +1549,25 @@ plot_v1_agesex <- ggplot(nat.var_mf, aes(x = Ring, y = v1)) +
   facet_grid(species ~ Sex + age, labeller = labeller(
     species = c("bluti" = "Blue Tit", "greti" = "Great Tit", "marti" = "Marsh Tit"),
     Sex = label_value,
-    age = c("5" = "first year", "6" = "older")
+    age = c("5" = "fist year", "6" = "older")
   )) +
   theme_minimal() +
   labs(
     x = "",
-    y = expression("Initial Velocity ("*m/s*")")
+    y = expression("Initial velocity (m/s)")
   ) +
   theme(
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    legend.position = "none"
+    legend.position = "none",
+    strip.text = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
   )
 
 plot_v1_agesex
 ```
 
-### acc by species, age, and sex. 
+#### acc by species, age, and sex. 
 ```{r}
 # filtering out those without sex
 nat.var_mf <- nat.var %>%
@@ -1601,12 +1622,20 @@ plot_acc_agesex <- ggplot(nat.var_mf, aes(x = Ring, y = acc)) +
   theme(
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    legend.position = "none"
+    legend.position = "none",
+    strip.text = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
   )
 
 plot_acc_agesex
 ```
+#### figure output
+```{r}
 
+ggarrange(plot_v1_agesex, plot_acc_agesex, nrow =2 )
+
+```
+### Superbird
 - identify the only great tit adult female
 - filter that superbird and see if the acceleration still shows interaction effect with sex and age
 ```{r}
@@ -1718,6 +1747,7 @@ Anova(lmer.acc.fin.normal, type = 3, test.statistic = "F")
 # the interaction effect disappears when the one extraordinary flight of adult female is excluded.
 ```
 - acc: great tit mean & great tit female mean
+##### mean and sd
 ```{r}
 
 great_tit_overall <- nat.var_mf_ordinary %>%
@@ -1739,7 +1769,7 @@ great_tit_female
 
 ```
 
-## 4. temporal resolution
+## 5. temporal resolution
 - filtering the flights with the same or better temporal resolution of 0.013 s 
 ```{r}
 nat.var$temp_res <- (1/nat.var$v1)*0.03
@@ -1795,7 +1825,9 @@ bw_species <- nat.var %>%
   summarise(
     n = n(),
     mean_bodyweight = mean(Wt, na.rm = TRUE),
-    sd_bodyweight = sd(Wt, na.rm = TRUE)
+    sd_bodyweight = sd(Wt, na.rm = TRUE),
+    max = max(Wt, na.rm = TRUE),
+    min = min(Wt, na.rm = TRUE)
   )
 bw_species
 ```
